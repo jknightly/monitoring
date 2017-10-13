@@ -1,0 +1,33 @@
+ <# 
+   .DESCRIPTION
+   This script will search all resources groups in the current login subscription context for virtual machines that are shut down in the OS
+   but not deallocated, check to confirm there are no dynamic IPs, then deallocate the machine.
+     
+   .AUTHOR John Knightly
+   .VERSION 1.0
+   #> 
+
+#Login-AzureRmAccount 
+$rg = get-azurermresourcegroup
+foreach ($r in $rg){
+    $vm = Get-AzureRmVM -ResourceGroupName $r.resourcegroupname -Status | Where-Object {$_.powerstate -like 'VM stopped'} 
+    foreach ($v in $VM)
+        {$nic = $v.NetworkProfile.NetworkInterfaces
+        $string = $nic.id.ToString()
+        $nicname = $string.split("/")[-1]
+        $ipconfig = Get-AzureRmNetworkInterface -ResourceGroupName $r.ResourceGroupName -Name $nicname 
+        $pip = $ipconfig.IpConfigurations.publicipaddress.Id
+        if ($pip -ne $null) 
+            {$pipname = $pip.split("/")[-1]
+            $pip = Get-AzureRmPublicIpAddress -Name $pipname -ResourceGroupName $r.ResourceGroupName
+            $pip = $pip.PublicIpAllocationMethod}
+        if (($ipconfig.IpConfigurations.privateIPAllocationMethod -like "Static") -and ($pip -ne 'Dynamic' -or $pip -eq $null)) 
+            {stop-azurermvm -resourcegroupname $r.ResourceGroupName -Name $v.name -Force
+            write-output "Stopping VM" $v.name}
+        Else {write-output $v.name "Has Dynamic IP and Can't be deallocated without releasing the IP. Please use the portal to shutdown after confirming that releasing the IP is OK"}
+        }
+        }
+
+   
+
+  
